@@ -13,6 +13,7 @@ const UserSchema = new mongoose.Schema({
   referralCode: { type: String, unique: true },
   referredBy: { type: String },
   referrals: { type: Number, default: 0 },
-  walletBalance: { type: Number, default: 0 }
+  walletBalance: { type: Number, default: 0 },
+  transactions: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Transaction' }]
 });
 module.exports = mongoose.model('User', UserSchema);

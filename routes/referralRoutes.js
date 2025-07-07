@@ -2,7 +2,7 @@
 const express = require('express');
 const router = express.Router();
 const referralController = require('../controllers/referralController');
-const { verifyToken } = require('../middleware/authMiddleware');
+const { verifyToken } = require('../middlewares/authMiddleware');
 
 // @route   GET /api/referral/generate
 router.get('/generate', verifyToken, referralController.generateReferralCode);

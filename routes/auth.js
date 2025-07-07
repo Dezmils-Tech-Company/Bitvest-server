@@ -4,6 +4,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const nodemailer = require('nodemailer');
+const { text } = require('express');
 
 const is18 = dob => {
   const age = new Date().getFullYear() - new Date(dob).getFullYear();
@@ -45,16 +46,17 @@ if (country !== 'South Africa') return res.status(400).json({ error: 'Only South
   const transporter = nodemailer.createTransport({
     service: 'gmail', // Use your email service
     auth: {
-      user: 'dez.ezra05@gmail.com', // Your email
-      pass: 'ueau dfsp jlcu stzw', // Your email password
+      user: 'bitvestorinvestment@gmail.com', // Your email
+      pass: 'adre oqog dtoq mugq', // Your email password
     }
   });
 
   const mailOptions = {
-    from: 'dez.ezra05@gmail.com', // Sender address
+    from: 'bitvestorinvestment@gmail.com', // Sender address
     to: email,
     subject: 'Your OTP Code',
-    html: `<h3>Your OTP is: ${otp}</h3>`,
+    html: `<h1>Welcome to Bitvest!</h1>`
+    + `<h4>Your OTP is:<strong> ${otp}</strong>. It is valid for 10 minutes. Please do not share it with anyone.</h4>`+`<p>You are joining Bitvest. The leading Investment Platform in the market. If you did not request this, please ignore this email and take all necessary security measures.</p>`,
   };
 
   transporter.sendMail(mailOptions, (error, info) => {
@@ -69,7 +71,7 @@ if (country !== 'South Africa') return res.status(400).json({ error: 'Only South
     const referrer = await User.findOne({ referralCode: referredBy });
     if (referrer) {
       referrer.referrals += 1;
-      referrer.walletBalance += 1; // award 1 coin
+      referrer.walletBalance += 0.32; 
       await referrer.save();
     }
   }

@@ -6,9 +6,9 @@ const connectDB = require('./config/db');
 const authRoutes = require('./routes/auth'); // Import the routes
  const userRoutes = require('./routes/userRoutes');
 const productRoutes = require('./routes/productRoutes');
-const { authenticateToken } = require('./middleware/authMiddleware'); // Import the authentication middleware
+const { authenticateToken } = require('./middlewares/authMiddleware'); // Import the authentication middleware
+const walletRoutes = require('./routes/walletRoutes');
  
-
 dotenv.config();
 
 const app = express();
@@ -20,7 +20,7 @@ app.use(express.json());
 
 // Routes
 app.use('/api/auth', authRoutes); // Use the auth routes
-
+app.use('/api', walletRoutes); // Use the wallet routes
 app.use('/api/user', userRoutes); // Use the user routes
 // product routes
 app.use('/api/products', productRoutes);
