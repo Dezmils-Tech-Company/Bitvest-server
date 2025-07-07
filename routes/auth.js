@@ -10,20 +10,24 @@ const is18 = dob => {
   return age >= 18;
 };
 
+const generateReferralCode = () => {
+  return Math.random().toString(36).substr(2, 8); // or use uuid
+};
+
 router.post('/register', async (req, res) => {
-  const { fullName, username, email, phone, country, dob,password } = req.body;
+  const { fullName, username, email, phone, country, dob,password, referredBy } = req.body;
 if (country !== 'South Africa') return res.status(400).json({ error: 'Only South African users allowed.' });
   if (!is18(dob)) return res.status(400).json({ error: 'You must be 18 or older.' });
 
   const existing = await User.findOne({ email });
   if (existing) return res.status(400).json({ error: 'Email already exists' });
 
+  const referralCode = generateReferralCode();
+
   const hashedPass = await bcrypt.hash(password, 10);
 
-  const user = new User({ fullName, username, email, phone, country, dob, password: hashedPass });
- 
+  const user = new User({ fullName, username, email, phone, country, dob,referralCode, referredBy, password: hashedPass });
 
-  
   // Function to generate OTP
   const generateOTP = () => {
     return Math.floor(100000 + Math.random() * 900000).toString();
@@ -60,7 +64,15 @@ if (country !== 'South Africa') return res.status(400).json({ error: 'Only South
     res.status(200).json({ message: 'OTP sent to email', token });
   });
  
-  
+  // Reward referral owner
+  if (referredBy) {
+    const referrer = await User.findOne({ referralCode: referredBy });
+    if (referrer) {
+      referrer.referrals += 1;
+      referrer.walletBalance += 1; // award 1 coin
+      await referrer.save();
+    }
+  }
 
    await user.save();
 });
@@ -146,7 +158,7 @@ router.get('/validate-token', (req, res) => {
               // 3. Generate JWT Token
                const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '0.5h' });
               res.json({ token }); // Adjust expiration as needed
-
+              
 
               // 4. Respond with Token
               res.status(200).json({ message: 'Login successful', token: token });

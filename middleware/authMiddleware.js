@@ -14,6 +14,7 @@
         next();
       });
     };
+    
 
     module.exports = { authenticateToken };
     // This middleware checks for a valid JWT token in the Authorization header.

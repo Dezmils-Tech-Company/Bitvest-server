@@ -4,9 +4,9 @@ const products = [
   "name": "TruNest Investment",
   "description": "Earns 10% interest on your Investment.",
   "features": [
-    "Investment value - 3.86",
-    "Daily Token -0.39",
-    "Estimated returns - 2.32",
+    "Investment value - $3.86",
+    "Daily Token - $0.39",
+    "Estimated returns - $2.32",
     "Investment period - 14 days"
   ],
   "ctaText": "Purchase Plan",
