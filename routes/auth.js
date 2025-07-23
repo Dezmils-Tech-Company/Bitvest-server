@@ -6,6 +6,8 @@ const User = require('../models/User');
 const nodemailer = require('nodemailer');
 const { text } = require('express');
 
+let otpStore = {};
+
 const is18 = dob => {
   const age = new Date().getFullYear() - new Date(dob).getFullYear();
   return age >= 18;
@@ -16,99 +18,124 @@ const generateReferralCode = () => {
 };
 
 router.post('/register', async (req, res) => {
-  const { fullName, username, email, phone, country, dob,password, referredBy } = req.body;
-if (country !== 'South Africa') return res.status(400).json({ error: 'Only South African users allowed.' });
-  if (!is18(dob)) return res.status(400).json({ error: 'You must be 18 or older.' });
+  const { fullName, username, email, phone, country, dob, password, referredBy } = req.body;
 
-  const existing = await User.findOne({ email });
-  if (existing) return res.status(400).json({ error: 'Email already exists' });
+  try {
+    if (country !== 'South Africa')
+      return res.status(400).json({ error: 'Only South African users allowed.' });
+    if (!is18(dob)) return res.status(400).json({ error: 'You must be 18 or older.' });
 
-  const referralCode = generateReferralCode();
+    const existing = await User.findOne({ email });
+    if (existing) return res.status(400).json({ error: 'Email already exists. Please log in.' });
 
-  const hashedPass = await bcrypt.hash(password, 10);
+    // Function to generate OTP
+    const generateOTP = () => {
+      return Math.floor(100000 + Math.random() * 900000).toString();
+    };
 
-  const user = new User({ fullName, username, email, phone, country, dob,referralCode, referredBy, password: hashedPass });
+    const otp = generateOTP();
+    const saltRounds = 10; // Recommended: use a value between 10 and 12
+    const hashedOtp = await bcrypt.hash(otp, saltRounds);
 
-  // Function to generate OTP
-  const generateOTP = () => {
-    return Math.floor(100000 + Math.random() * 900000).toString();
-  };
+    const otpExpirationTime = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes from now
 
-  const otp = generateOTP();
-  const saltRounds = 10; // Recommended: use a value between 10 and 12
-  const hashedOtp = await bcrypt.hash(otp, saltRounds);
+    // **CRITICAL CHANGE:** Store *only* the OTP and expiration *before* verification
+    otpStore[email] = {
+      otp: hashedOtp,
+      otpExpires: otpExpirationTime,
+      userData: { fullName, username, phone, country, dob, password, referredBy }, //Store the user's data here
+    };
 
-   const otpExpirationTime = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes from now
-  user.otp = hashedOtp;
-  user.otpExpires = otpExpirationTime;
+    // Simulated OTP email
+    const transporter = nodemailer.createTransport({
+      service: 'gmail', // Use your email service
+      auth: {
+        user: 'bitvestorinvestment@gmail.com', // Your email
+        pass: 'adre oqog dtoq mugq', // Your email password
+      },
+    });
 
-  // Simulated OTP email
-  const transporter = nodemailer.createTransport({
-    service: 'gmail', // Use your email service
-    auth: {
-      user: 'bitvestorinvestment@gmail.com', // Your email
-      pass: 'adre oqog dtoq mugq', // Your email password
-    }
-  });
+    const mailOptions = {
+      from: 'bitvestorinvestment@gmail.com', // Sender address
+      to: email,
+      subject: 'Your OTP Code',
+      html:
+        `<h1>Welcome to Bitvest!</h1>
+        <h4>Your OTP is: <strong>${otp}</strong>. It is valid for 10 minutes. Please do not share it with anyone.</h4>
+        <p>You are joining Bitvest. The leading Investment Platform in the market. If you did not request this, please ignore this email and take all necessary security measures.</p>`,
+    };
 
-  const mailOptions = {
-    from: 'bitvestorinvestment@gmail.com', // Sender address
-    to: email,
-    subject: 'Your OTP Code',
-    html: `<h1>Welcome to Bitvest!</h1>`
-    + `<h4>Your OTP is:<strong> ${otp}</strong>. It is valid for 10 minutes. Please do not share it with anyone.</h4>`+`<p>You are joining Bitvest. The leading Investment Platform in the market. If you did not request this, please ignore this email and take all necessary security measures.</p>`,
-  };
-
-  transporter.sendMail(mailOptions, (error, info) => {
-    if (error) {
-      return res.status(500).json({ message: 'Failed to send OTP', error: error.message });
-    }
-    res.status(200).json({ message: 'OTP sent to email', token });
-  });
- 
-  // Reward referral owner
-  if (referredBy) {
-    const referrer = await User.findOne({ referralCode: referredBy });
-    if (referrer) {
-      referrer.referrals += 1;
-      referrer.walletBalance += 0.32; 
-      await referrer.save();
-    }
+    transporter.sendMail(mailOptions, (error, info) => {
+      if (error) {
+        return res.status(500).json({ message: 'Failed to send OTP', error: error.message });
+      }
+      console.log('Email sent: ' + info.response);
+      res.status(200).json({ message: 'OTP sent to email. Please verify.', email }); // Send email to the client
+    });
+  } catch (err) {
+    console.error('Registration error: ' + err);
+    res.status(500).json({ message: 'Registration failed', error: err });
   }
-
-   await user.save();
 });
 
+// Verify OTP Route
+router.post('/verify', async (req, res) => {
+  try {
+    const { email, otp } = req.body;
 
-      // Verify OTP Route
-      router.post('/verify', async (req, res) => {
-        try {
-          const { email, otp } = req.body;
-  
-          // 1. Find the User
-          const user = await User.findOne({ email });
-          if (!user) {
-            return res.status(404).json({ message: 'User not found.' });
-          }
-  
-        
+    // 1. Retrieve data from store
+    const storedData = otpStore[email];
 
-        // 3. Update User (e.g., set `isVerified: true`) -  Remove OTP
-        user.otp = undefined;
-        user.otpExpires = undefined;
-        await user.save();
+    if (!storedData) {
+      return res.status(404).json({ message: 'User data not found. Please register again.' });
+    }
 
-          // 4. Respond with Success
-          res.status(200).json({ message: 'OTP verified successfully.' });
-  
-        } catch (error) {
-          console.error('OTP verification error:', error);
-          res.status(500).json({ message: 'OTP verification failed.' });
-        }
-      });
+    // 2. Check whether code has expired
+    if (storedData.otpExpires < Date.now()) {
+      delete otpStore[email];
+      return res.status(400).json({ message: 'Code has expired.' });
+    }
 
+    // 3. Verify the OTP
+    const isMatch = await bcrypt.compare(otp, storedData.otp);
 
-      // API endpoint to validate JWT tokens
+    if (!isMatch) {
+      return res.status(400).json({ message: 'Invalid OTP' });
+    }
+
+    // OTP is valid, now create the user
+    const { fullName, username, phone, country, dob, password, referredBy } = storedData.userData;
+
+    const referralCode = generateReferralCode();  // Get a referral code.
+
+    const user = new User({
+      fullName,
+      username,
+      email,
+      phone,
+      country,
+      dob,
+      password,  // Password is already hashed
+      referralCode,
+      referredBy,
+    });
+
+    await user.save();
+
+    // Remove the OTP from the store after successful verification and user creation
+    delete otpStore[email];
+
+    // Optional: Create and return a JWT here (for authentication)
+
+    res.status(201).json({ message: 'User registered successfully!' });
+
+  } catch (err) {
+    console.error('Verification error: ' + err);
+    res.status(500).json({ message: 'Verification failed', error: err });
+  }
+});
+
+// API endpoint to validate JWT tokens
 router.get('/validate-token', (req, res) => {
     const authHeader = req.headers['authorization'];
     const token = authHeader && authHeader.split(' ')[1]; // Extract token (Bearer <token>)
